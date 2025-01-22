@@ -89,7 +89,7 @@
                 // Inicializar MindAR con debugging
                 mindarThree = new MindARThree({
                     container: arContainer,
-                    imageTargetSrc: 'targets.mind',
+                    imageTargetSrc: '/targets.mind',
                     uiScanning: true, // Muestra UI de escaneo
                     uiLoading: true   // Muestra UI de carga
                 });
@@ -118,7 +118,7 @@
                 // Cargar y agregar modelo
                 const loader = new GLTFLoader();
                 loader.load(
-                    'tamborileros.glb',
+                    '/tamborileros.glb',
                     (gltf) => {
                         model = gltf.scene;
                         // Ajustar posición y escala
