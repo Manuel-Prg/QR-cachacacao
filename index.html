@@ -10,7 +10,7 @@
                 "three/addons/": "https://unpkg.com/three@0.134.0/examples/jsm/"
             }
         }
-        </script>
+    </script>
     <style>
         .container {
             position: relative;
@@ -68,13 +68,31 @@
         </div>
     </div>
 
-
     <script type="module">
         import * as THREE from 'three';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
         import { MindARThree } from 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.1/dist/mindar-image-three.prod.js';
 
+        // Global variables
+        let currentMode = null;
+        let mindarThree = null;
+        let model = null;
+        let scene = null;
+        let camera = null;
+        let renderer = null;
+
         const debugDiv = document.getElementById('debug');
+        const arContainer = document.getElementById('ar-view');
+        const statusDiv = document.getElementById('status');
+
+        function showStatus(message) {
+            statusDiv.textContent = message;
+            statusDiv.style.display = 'block';
+        }
+
+        function hideStatus() {
+            statusDiv.style.display = 'none';
+        }
         
         async function initImageMode() {
             try {
@@ -90,8 +108,8 @@
                 mindarThree = new MindARThree({
                     container: arContainer,
                     imageTargetSrc: '/targets.mind',
-                    uiScanning: true, // Muestra UI de escaneo
-                    uiLoading: true   // Muestra UI de carga
+                    uiScanning: true,
+                    uiLoading: true
                 });
 
                 const { renderer, scene, camera } = mindarThree;
@@ -108,20 +126,19 @@
                 const anchor = mindarThree.addAnchor(0);
                 debugDiv.textContent = 'Anchor creado, cargando modelo...';
 
-                // Agregar un cubo de prueba para verificar el tracking
+                // Agregar un cubo de prueba
                 const geometry = new THREE.BoxGeometry(1, 1, 1);
                 const material = new THREE.MeshPhongMaterial({color: 0xff0000});
                 const cube = new THREE.Mesh(geometry, material);
                 cube.position.set(0, 0, 0);
                 anchor.group.add(cube);
                 
-                // Cargar y agregar modelo
+                // Cargar modelo
                 const loader = new GLTFLoader();
                 loader.load(
                     '/tamborileros.glb',
                     (gltf) => {
                         model = gltf.scene;
-                        // Ajustar posición y escala
                         model.scale.set(0.5, 0.5, 0.5);
                         model.position.set(0, 0, 0);
                         anchor.group.add(model);
@@ -137,7 +154,7 @@
                     }
                 );
 
-                // Agregar evento para detectar cuando se encuentra el target
+                // Eventos de target
                 anchor.onTargetFound = () => {
                     debugDiv.textContent = 'Target encontrado!';
                 };
@@ -193,12 +210,14 @@
         document.getElementById('handMode').addEventListener('click', () => switchMode('hand'));
         document.getElementById('faceMode').addEventListener('click', () => switchMode('face'));
 
-        // Inicialización
-        scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        arContainer.appendChild(renderer.domElement);
+        // Inicializar Three.js
+        function initThree() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            arContainer.appendChild(renderer.domElement);
+        }
 
         // Manejar cambios de tamaño de ventana
         window.addEventListener('resize', () => {
@@ -209,6 +228,9 @@
                 camera.updateProjectionMatrix();
             }
         });
+
+        // Iniciar la aplicación
+        initThree();
     </script>
 </body>
 </html>
