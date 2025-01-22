@@ -89,7 +89,7 @@
                 // Inicializar MindAR
                 mindarThree = new MindARThree({
                     container: arContainer,
-                    imageTargetSrc: 'targets.mind'
+                    imageTargetSrc: '/targets.mind'
                 });
 
                 const { renderer, scene, camera } = mindarThree;
@@ -100,7 +100,7 @@
                 // Cargar y agregar modelo
                 const loader = new GLTFLoader();
                 loader.load(
-                    'tamborileros.glb',
+                    '/tamborileros.glb',
                     (gltf) => {
                         model = gltf.scene;
                         model.scale.set(0.5, 0.5, 0.5);
