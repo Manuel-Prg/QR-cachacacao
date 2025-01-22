@@ -3,13 +3,14 @@
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Visor de Modelos 3D</title>
-    <!-- MindAR -->
-    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.1/dist/mindar-image.prod.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.1/dist/mindar-image-three.prod.js"></script>
-    <!-- Three.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <!-- MediaPipe -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.134.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.134.0/examples/jsm/"
+        }
+    }
+    </script>
     <style>
         .container {
             position: relative;
@@ -31,105 +32,116 @@
             padding: 10px;
             border-radius: 10px;
         }
+        #status {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            display: none;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="ar-view" id="ar-view"></div>
+        <div id="status">Cargando...</div>
         <div class="controls">
-            <button onclick="switchMode('image')">Modo Imagen</button>
-            <button onclick="switchMode('hand')">Modo Mano</button>
-            <button onclick="switchMode('face')">Modo Rostro</button>
+            <button id="imageMode">Modo Imagen</button>
+            <button id="handMode">Modo Mano</button>
+            <button id="faceMode">Modo Rostro</button>
         </div>
     </div>
 
-    <script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { MindARThree } from 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.1/dist/mindar-image-three.prod.js';
+
         let currentMode = null;
         let scene, camera, renderer;
         let model = null;
+        let mindarThree = null;
+        const arContainer = document.getElementById('ar-view');
+        const statusDiv = document.getElementById('status');
 
-        // Inicializar Three.js
-        function initThree() {
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            document.getElementById('ar-view').appendChild(renderer.domElement);
+        function showStatus(message) {
+            statusDiv.textContent = message;
+            statusDiv.style.display = 'block';
         }
 
-        // Cargar modelo 3D (usando GLTFLoader)
-        async function loadModel(url) {
-            const loader = new THREE.GLTFLoader();
-            return new Promise((resolve, reject) => {
-                loader.load(url, (gltf) => {
-                    model = gltf.scene;
-                    resolve(model);
-                }, undefined, reject);
-            });
+        function hideStatus() {
+            statusDiv.style.display = 'none';
         }
 
-        // Modo de detección de imagen con MindAR
         async function initImageMode() {
-            const mindarThree = new window.MINDAR.IMAGE.MindARThree({
-                container: document.querySelector("#ar-view"),
-                imageTargetSrc: '/targets.mind',
-            });
+            try {
+                showStatus('Iniciando modo imagen...');
 
-            const { renderer, scene, camera } = mindarThree;
-            
-            // Cargar y agregar tu modelo
-            const modelUrl = '/tamborileros.glb';
-            const model = await loadModel(modelUrl);
-            scene.add(model);
+                // Limpiar contenedor AR
+                while (arContainer.firstChild) {
+                    arContainer.removeChild(arContainer.firstChild);
+                }
 
-            await mindarThree.start();
+                // Inicializar MindAR
+                mindarThree = new MindARThree({
+                    container: arContainer,
+                    imageTargetSrc: 'targets.mind'
+                });
+
+                const { renderer, scene, camera } = mindarThree;
+
+                // Crear un anchor para el modelo
+                const anchor = mindarThree.addAnchor(0);
+                
+                // Cargar y agregar modelo
+                const loader = new GLTFLoader();
+                loader.load(
+                    'tamborileros.glb',
+                    (gltf) => {
+                        model = gltf.scene;
+                        model.scale.set(0.5, 0.5, 0.5);
+                        anchor.group.add(model);
+                    },
+                    (progress) => {
+                        console.log('Cargando modelo:', (progress.loaded / progress.total * 100) + '%');
+                    },
+                    (error) => {
+                        console.error('Error cargando modelo:', error);
+                        showStatus('Error al cargar el modelo');
+                    }
+                );
+
+                await mindarThree.start();
+                hideStatus();
+
+            } catch (error) {
+                console.error('Error en modo imagen:', error);
+                showStatus('Error: ' + error.message);
+            }
         }
 
-        // Modo de detección de manos con MediaPipe
-        async function initHandMode() {
-            const vision = await FilesetResolver.forVisionTasks(
-                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
-            );
-            
-            const handLandmarker = await HandLandmarker.createFromOptions(vision, {
-                baseOptions: {
-                    modelAssetPath: "path/to/hand_landmarker.task"
-                },
-                numHands: 2
-            });
+        async function cleanup() {
+            if (mindarThree) {
+                await mindarThree.stop();
+                mindarThree = null;
+            }
 
-            // Configurar la cámara web y el procesamiento
-            const video = document.createElement('video');
-            // ... configuración de la cámara web ...
+            if (model) {
+                scene.remove(model);
+                model = null;
+            }
+
+            hideStatus();
         }
 
-        // Modo de detección facial con MediaPipe
-        async function initFaceMode() {
-            const vision = await FilesetResolver.forVisionTasks(
-                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
-            );
-            
-            const faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
-                baseOptions: {
-                    modelAssetPath: "path/to/face_landmarker.task"
-                },
-                numFaces: 1
-            });
-
-            // Configurar la cámara web y el procesamiento
-            const video = document.createElement('video');
-            // ... configuración de la cámara web ...
-        }
-
-        // Cambiar entre modos
         async function switchMode(mode) {
             if (currentMode === mode) return;
             
-            // Limpiar modo actual
-            if (currentMode) {
-                // Limpiar recursos del modo actual
-            }
-
+            await cleanup();
             currentMode = mode;
             
             switch(mode) {
@@ -137,17 +149,35 @@
                     await initImageMode();
                     break;
                 case 'hand':
-                    await initHandMode();
+                    showStatus('Modo mano no implementado aún');
                     break;
                 case 'face':
-                    await initFaceMode();
+                    showStatus('Modo rostro no implementado aún');
                     break;
             }
         }
 
-        // Inicializar la aplicación
-        initThree();
-        switchMode('image'); // Comenzar en modo imagen por defecto
+        // Event Listeners
+        document.getElementById('imageMode').addEventListener('click', () => switchMode('image'));
+        document.getElementById('handMode').addEventListener('click', () => switchMode('hand'));
+        document.getElementById('faceMode').addEventListener('click', () => switchMode('face'));
+
+        // Inicialización
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        arContainer.appendChild(renderer.domElement);
+
+        // Manejar cambios de tamaño de ventana
+        window.addEventListener('resize', () => {
+            if (mindarThree) {
+                const { renderer, camera } = mindarThree;
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+            }
+        });
     </script>
 </body>
 </html>
